@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Encargos Cocina</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e2537;
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+      --accent: #38bdf8;
+      --danger: #ef4444;
+      --radius-lg: 18px;
+      --radius-sm: 10px;
+    }
+    body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text);padding:1rem;}
+    header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;}
+    h1{font-size:1.2rem;margin:0;display:flex;align-items:center;gap:.5rem;}
+    .today{background:rgba(56,189,248,.15);color:var(--accent);padding:.25rem .5rem;border-radius:10px;font-size:.75rem;}
+    .actions{display:flex;gap:.5rem;flex-wrap:wrap;}
+    button{border:0;border-radius:10px;padding:.6rem .8rem;font-weight:600;cursor:pointer;}
+    .primary{background:var(--accent);color:#0a0f1a;}
+    .danger{background:rgba(239,68,68,.1);color:var(--danger);}
+    main{display:grid;gap:1rem;margin-top:1rem;}
+    @media(min-width:768px){main{grid-template-columns:320px 1fr;}}
+    .card{background:var(--panel);border-radius:18px;padding:1rem;box-shadow:0 20px 40px rgba(0,0,0,.5);}
+    .card h2{margin:0 0 .75rem 0;font-size:1rem;}
+    form{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;}
+    .full{grid-column:span 2;}
+    label{display:block;font-size:.8rem;color:var(--text-dim);margin-bottom:.3rem;}
+    input,textarea{width:100%;background:#0f172a;color:var(--text);border:1px solid #475569;border-radius:10px;padding:.6rem;font-size:.9rem;}
+    textarea{min-height:60px;resize:none;}
+    .submit{grid-column:span 2;background:var(--accent);color:#0a0f1a;}
+    .encargo{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:.75rem;margin-bottom:.75rem;}
+    .line1{display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem;font-weight:600;}
+    .hora{background:rgba(56,189,248,.15);color:var(--accent);padding:.2rem .5rem;border-radius:8px;font-size:.75rem;}
+    .meta{color:var(--text-dim);font-size:.85rem;line-height:1.4;margin-top:.4rem;white-space:pre-line;}
+    .delete{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.4);padding:.35rem .6rem;border-radius:8px;font-size:.75rem;}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Encargos cocina <span class="today" id="today"></span></h1>
+    <div class="actions">
+      <button class="primary" id="btnNuevo">➕ Nuevo encargo</button>
+      <button class="danger" id="btnVaciar">🗑 Vaciar día</button>
+    </div>
+    <div class="actions">
+  
+  <button id="btnHoy">📅 Hoy</button>
+  <button id="btnTodo">📋 Todo</button>
+  <span id="badgeCount" class="today"></span>
+</div>
+
+  </header>
+
+  <main>
+    <section class="card" id="formCard">
+      <h2>Nuevo encargo</h2>
+      <form id="formEncargo">
+        <div class="full">
+          <label>Detalle</label>
+          <textarea id="descripcion" placeholder="Tortillas, Fritos, Bocatines" required></textarea>
+        </div>
+        <div><label>Día</label><input id="fecha" type="date" required /></div>
+        <div><label>Hora</label><input id="hora" type="time" required /></div>
+        <div><label>Cliente</label><input id="nombre" type="text" required /></div>
+        <div><label>Teléfono</label><input id="telefono" type="tel" required /></div>
+        <div><label>Anotado por</label><input id="persona" type="text" placeholder="Nombre Trabajador" /></div>
+        <div><label>Notas</label><input id="notas" type="text" placeholder="Para Llevar, Alergias" /></div>
+        <button class="submit">Guardar</button>
+      </form>
+    </section>
+
+    <section class="card"><h2>Encargos</h2><div id="lista"></div></section>
+    
+</div>
+
+  </main>
+
+<script type="module">
+/* ✅ PEGAR TU firebaseConfig AQUÍ */
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCwWNzBYuB59EYZAdO7EuTysIaFiRwRgVs",
+  authDomain: "encargos-cocina.firebaseapp.com",
+  projectId: "encargos-cocina",
+  storageBucket: "encargos-cocina.firebasestorage.app",
+  messagingSenderId: "147677552505",
+  appId: "1:147677552505:web:ab956b3fb56eccd46419a8",
+  measurementId: "G-2QGJNLDQGK"
+};
+
+
+/* TU firebaseConfig aquí arriba */
+
+// ✅ IMPORTS
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, doc, deleteDoc,
+  onSnapshot, query, orderBy, enableIndexedDbPersistence, serverTimestamp,
+  where
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+// ✅ Inicialización Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+await signInAnonymously(auth);
+enableIndexedDbPersistence(db).catch(()=>{});
+
+// ✅ Colección y elementos
+const col = collection(db, "encargos");
+const lista = document.getElementById("lista");
+const badgeCount = document.getElementById("badgeCount");
+
+// ✅ Función fecha hoy
+const hoyStr = () => {
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+};
+
+// ✅ Suscripción dinámica
+let stop;
+
+function render(snap) {
+  badgeCount.textContent = `• ${snap.size} encargos`;
+
+  if (snap.empty) {
+    lista.innerHTML = "<p style='color:#94a3b8'>No hay encargos</p>";
+    return;
+  }
+
+  lista.innerHTML = snap.docs.map(d => {
+    const e = d.data();
+    return `
+      <div class="encargo">
+        <div class="line1">
+          <div>${e.descripcion || ""}</div>
+          <div class="hora">${e.hora || ""}</div>
+        </div>
+        <div class="meta">
+          👤 ${e.nombreCliente || ""} — 📞 ${e.telefonoCliente || ""}<br>
+          📅 ${e.fecha || ""} ${e.notas ? `📝 ${e.notas}` : ""} ${e.persona ? `🧾 ${e.persona}` : ""}
+        </div>
+        <button class="delete" onclick="borrar('${d.id}')">Borrar</button>
+      </div>`;
+  }).join("");
+}
+
+// ✅ Mostrar TODO
+function subscribeAll() {
+  if (stop) stop();
+  const q = query(col, orderBy("fechaHora"));
+  stop = onSnapshot(q, render);
+}
+
+// ✅ Mostrar SOLO HOY
+function subscribeToday() {
+  if (stop) stop();
+  const start = `${hoyStr()}T00:00`;
+  const end   = `${hoyStr()}T23:59`;
+  const q = query(
+    col,
+    orderBy("fechaHora"),
+    where("fechaHora", ">=", start),
+    where("fechaHora", "<=", end)
+  );
+  stop = onSnapshot(q, render);
+}
+
+// ✅ Botones
+document.getElementById("btnHoy").onclick = subscribeToday;
+document.getElementById("btnTodo").onclick = subscribeAll;
+
+// ✅ Formulario guardar
+document.getElementById("formEncargo").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+
+  const fechaHora = `${f.fecha.value}T${f.hora.value}`;
+
+  await addDoc(col, {
+    descripcion: f.descripcion.value.trim(),
+    fecha: f.fecha.value,
+    hora: f.hora.value,
+    fechaHora,
+    nombreCliente: f.nombre.value.trim(),
+    telefonoCliente: f.telefono.value.trim(),
+    persona: f.persona.value.trim(),
+    notas: f.notas.value.trim(),
+    creado: serverTimestamp()
+  });
+
+  f.reset();
+});
+
+// ✅ Borrar encargo
+window.borrar = async (id) => {
+  await deleteDoc(doc(db, "encargos", id));
+};
+
+// ✅ Al cargar → mostrar HOY (cambia a subscribeAll() si prefieres todo siempre)
+subscribeToday();
+
+
+
+</script>
+
+</body>
+</html>
