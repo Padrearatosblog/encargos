@@ -44,16 +44,14 @@
   <header>
     <h1>Encargos cocina <span class="today" id="today"></span></h1>
     <div class="actions">
-      <button class="primary" id="btnNuevo">➕ Nuevo encargo</button>
-      <button class="danger" id="btnVaciar">🗑 Vaciar día</button>
+      <button class="primary" id="btnNuevo" type="button">➕ Nuevo encargo</button>
+      <button class="danger"  id="btnVaciar" type="button">🗑 Vaciar día</button>
     </div>
     <div class="actions">
-  
-  <button id="btnHoy">📅 Hoy</button>
-  <button id="btnTodo">📋 Todo</button>
-  <span id="badgeCount" class="today"></span>
-</div>
-
+      <button id="btnHoy"  type="button">📅 Hoy</button>
+      <button id="btnTodo" type="button">📋 Todo</button>
+      <span id="badgeCount" class="today"></span>
+    </div>
   </header>
 
   <main>
@@ -70,147 +68,216 @@
         <div><label>Teléfono</label><input id="telefono" type="tel" required /></div>
         <div><label>Anotado por</label><input id="persona" type="text" placeholder="Nombre Trabajador" /></div>
         <div><label>Notas</label><input id="notas" type="text" placeholder="Para Llevar, Alergias" /></div>
-        <button class="submit">Guardar</button>
+        <button class="submit" type="submit">Guardar</button>
       </form>
     </section>
 
-    <section class="card"><h2>Encargos</h2><div id="lista"></div></section>
-    
-</div>
-
+    <section class="card">
+      <h2>Encargos</h2>
+      <div id="lista"></div>
+    </section>
   </main>
 
-<script type="module">
-/* ✅ PEGAR TU firebaseConfig AQUÍ */
-
-const firebaseConfig = {
-  apiKey: "AIzaSyCwWNzBYuB59EYZAdO7EuTysIaFiRwRgVs",
-  authDomain: "encargos-cocina.firebaseapp.com",
-  projectId: "encargos-cocina",
-  storageBucket: "encargos-cocina.firebasestorage.app",
-  messagingSenderId: "147677552505",
-  appId: "1:147677552505:web:ab956b3fb56eccd46419a8",
-  measurementId: "G-2QGJNLDQGK"
-};
-
-
-/* TU firebaseConfig aquí arriba */
-
-// ✅ IMPORTS
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-  getFirestore, collection, addDoc, doc, deleteDoc,
-  onSnapshot, query, orderBy, enableIndexedDbPersistence, serverTimestamp,
-  where
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
-// ✅ Inicialización Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-await signInAnonymously(auth);
-enableIndexedDbPersistence(db).catch(()=>{});
-
-// ✅ Colección y elementos
-const col = collection(db, "encargos");
-const lista = document.getElementById("lista");
-const badgeCount = document.getElementById("badgeCount");
-
-// ✅ Función fecha hoy
-const hoyStr = () => {
-  const d = new Date();
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const dd = String(d.getDate()).padStart(2,'0');
-  return `${d.getFullYear()}-${mm}-${dd}`;
-};
-
-// ✅ Suscripción dinámica
-let stop;
-
-function render(snap) {
-  badgeCount.textContent = `• ${snap.size} encargos`;
-
-  if (snap.empty) {
-    lista.innerHTML = "<p style='color:#94a3b8'>No hay encargos</p>";
-    return;
-  }
-
-  lista.innerHTML = snap.docs.map(d => {
-    const e = d.data();
-    return `
-      <div class="encargo">
-        <div class="line1">
-          <div>${e.descripcion || ""}</div>
-          <div class="hora">${e.hora || ""}</div>
+  <!-- Modal Editar -->
+  <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;align-items:center;justify-content:center;">
+    <div style="background:#1e2537;border:1px solid #334155;border-radius:14px;padding:14px;max-width:520px;width:92%;">
+      <h3 style="margin:0 0 .5rem 0">Editar encargo</h3>
+      <form id="editForm" style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;">
+        <div style="grid-column:1/3">
+          <label style="font-size:.8rem;color:#94a3b8">Detalle</label>
+          <textarea id="e-descripcion" required></textarea>
         </div>
-        <div class="meta">
-          👤 ${e.nombreCliente || ""} — 📞 ${e.telefonoCliente || ""}<br>
-          📅 ${e.fecha || ""} ${e.notas ? `📝 ${e.notas}` : ""} ${e.persona ? `🧾 ${e.persona}` : ""}
+        <div><label style="font-size:.8rem;color:#94a3b8">Día</label><input id="e-fecha" type="date" required></div>
+        <div><label style="font-size:.8rem;color:#94a3b8">Hora</label><input id="e-hora" type="time" required></div>
+        <div><label style="font-size:.8rem;color:#94a3b8">Cliente</label><input id="e-nombre" type="text" required></div>
+        <div><label style="font-size:.8rem;color:#94a3b8">Teléfono</label><input id="e-telefono" type="tel" required></div>
+        <div><label style="font-size:.8rem;color:#94a3b8">Anotado por</label><input id="e-persona" type="text"></div>
+        <div><label style="font-size:.8rem;color:#94a3b8">Notas</label><input id="e-notas" type="text"></div>
+        <div style="grid-column:1/3;display:flex;gap:.5rem;justify-content:flex-end;margin-top:.3rem">
+          <button type="button" id="btnCancelEdit">Cancelar</button>
+          <button type="submit" class="primary">Guardar cambios</button>
         </div>
-        <button class="delete" onclick="borrar('${d.id}')">Borrar</button>
-      </div>`;
-  }).join("");
-}
+      </form>
+    </div>
+  </div>
 
-// ✅ Mostrar TODO
-function subscribeAll() {
-  if (stop) stop();
-  const q = query(col, orderBy("fechaHora"));
-  stop = onSnapshot(q, render);
-}
+  <script type="module">
+    /* TU firebaseConfig */
+    const firebaseConfig = {
+      apiKey: "AIzaSyCwWNzBYuB59EYZAdO7EuTysIaFiRwRgVs",
+      authDomain: "encargos-cocina.firebaseapp.com",
+      projectId: "encargos-cocina",
+      storageBucket: "encargos-cocina.firebasestorage.app",
+      messagingSenderId: "147677552505",
+      appId: "1:147677552505:web:ab956b3fb56eccd46419a8",
+      measurementId: "G-2QGJNLDQGK"
+    };
 
-// ✅ Mostrar SOLO HOY
-function subscribeToday() {
-  if (stop) stop();
-  const start = `${hoyStr()}T00:00`;
-  const end   = `${hoyStr()}T23:59`;
-  const q = query(
-    col,
-    orderBy("fechaHora"),
-    where("fechaHora", ">=", start),
-    where("fechaHora", "<=", end)
-  );
-  stop = onSnapshot(q, render);
-}
+    // IMPORTS
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore, collection, addDoc, doc, deleteDoc, updateDoc,
+      onSnapshot, query, orderBy, enableIndexedDbPersistence, serverTimestamp,
+      where
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// ✅ Botones
-document.getElementById("btnHoy").onclick = subscribeToday;
-document.getElementById("btnTodo").onclick = subscribeAll;
+    // Inicialización
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    await signInAnonymously(auth);
+    enableIndexedDbPersistence(db).catch(()=>{});
 
-// ✅ Formulario guardar
-document.getElementById("formEncargo").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const f = e.target;
+    // Utilidad fecha y badge
+    const todayBadge = document.getElementById("today");
+    todayBadge.textContent = new Date().toLocaleDateString("es-ES",{weekday:"short", day:"2-digit", month:"short"});
+    const hoyStr = () => {
+      const d = new Date();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${d.getFullYear()}-${mm}-${dd}`;
+    };
 
-  const fechaHora = `${f.fecha.value}T${f.hora.value}`;
+    // Colección y elementos
+    const col   = collection(db, "encargos");
+    const lista = document.getElementById("lista");
+    const badgeCount = document.getElementById("badgeCount");
 
-  await addDoc(col, {
-    descripcion: f.descripcion.value.trim(),
-    fecha: f.fecha.value,
-    hora: f.hora.value,
-    fechaHora,
-    nombreCliente: f.nombre.value.trim(),
-    telefonoCliente: f.telefono.value.trim(),
-    persona: f.persona.value.trim(),
-    notas: f.notas.value.trim(),
-    creado: serverTimestamp()
-  });
+    // Estado edición
+    let lastDocs = [];
+    let stop;
 
-  f.reset();
-});
+    // Render de lista
+    function render(snap){
+      lastDocs = snap.docs;
+      badgeCount.textContent = `• ${snap.size} encargos`;
 
-// ✅ Borrar encargo
-window.borrar = async (id) => {
-  await deleteDoc(doc(db, "encargos", id));
-};
+      if (snap.empty){
+        lista.innerHTML = "<p style='color:#94a3b8'>No hay encargos</p>";
+        return;
+      }
 
-// ✅ Al cargar → mostrar HOY (cambia a subscribeAll() si prefieres todo siempre)
-subscribeToday();
+      lista.innerHTML = snap.docs.map(d=>{
+        const e = d.data();
+        return `
+          <div class="encargo">
+            <div class="line1">
+              <div>${e.descripcion || ""}</div>
+              <div class="hora">${e.hora || ""}</div>
+            </div>
+            <div class="meta">
+              👤 ${e.nombreCliente || ""} — 📞 ${e.telefonoCliente || ""}\n
+              📅 ${e.fecha || ""} ${e.notas ? `\n📝 ${e.notas}` : ""} ${e.persona ? `\n🧾 ${e.persona}` : ""}
+            </div>
+            <div style="margin-top:.5rem;display:flex;gap:.5rem">
+              <button class="delete" data-action="delete" data-id="${d.id}">Borrar</button>
+              <button class="edit"   data-action="edit"   data-id="${d.id}">Editar</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
 
+    // Delegación de eventos en la lista (borrar / editar)
+    lista.addEventListener("click", (ev)=>{
+      const btn = ev.target.closest("button[data-action]");
+      if(!btn) return;
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      if(action === "delete"){
+        deleteDoc(doc(db,"encargos", id));
+      } else if(action === "edit"){
+        const enc = lastDocs.find(x=>x.id===id);
+        if (enc) openEdit(enc);
+      }
+    });
 
+    // Suscripciones
+    function subscribeAll(){
+      if (stop) stop();
+      const q = query(col, orderBy("fechaHora"));
+      stop = onSnapshot(q, render);
+    }
+    function subscribeToday(){
+      if (stop) stop();
+      const start = `${hoyStr()}T00:00`;
+      const end   = `${hoyStr()}T23:59`;
+      const q = query(
+        col, orderBy("fechaHora"),
+        where("fechaHora", ">=", start),
+        where("fechaHora", "<=", end)
+      );
+      stop = onSnapshot(q, render);
+    }
 
-</script>
+    document.getElementById("btnHoy").onclick  = subscribeToday;
+    document.getElementById("btnTodo").onclick = subscribeAll;
 
+    // Guardar
+    document.getElementById("formEncargo").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const f = e.target;
+      const fechaHora = `${f.fecha.value}T${f.hora.value}`;
+      await addDoc(col, {
+        descripcion:     f.descripcion.value.trim(),
+        fecha:           f.fecha.value,
+        hora:            f.hora.value,
+        fechaHora,
+        nombreCliente:   f.nombre.value.trim(),
+        telefonoCliente: f.telefono.value.trim(),
+        persona:         f.persona.value.trim(),
+        notas:           f.notas.value.trim(),
+        creado:          serverTimestamp()
+      });
+      f.reset();
+    });
+
+    // Vaciar día (borra los visibles cuando está el filtro de HOY)
+    document.getElementById("btnVaciar").onclick = async ()=>{
+      if (!confirm("¿Borrar TODOS los encargos visibles?")) return;
+      for (const d of lastDocs){ await deleteDoc(doc(db,"encargos", d.id)); }
+    };
+
+    // Modal edición
+    const editModal = document.getElementById("editModal");
+    const editForm  = document.getElementById("editForm");
+    let editingId = null;
+
+    const openEdit = (enc)=>{
+      editingId = enc.id;
+      const e = enc.data();
+      document.getElementById("e-descripcion").value = e.descripcion || "";
+      document.getElementById("e-fecha").value       = e.fecha || "";
+      document.getElementById("e-hora").value        = e.hora || "";
+      document.getElementById("e-nombre").value      = e.nombreCliente || "";
+      document.getElementById("e-telefono").value    = e.telefonoCliente || "";
+      document.getElementById("e-persona").value     = e.persona || "";
+      document.getElementById("e-notas").value       = e.notas || "";
+      editModal.style.display = "flex";
+    };
+    const closeEdit = ()=>{ editingId=null; editModal.style.display="none"; };
+    document.getElementById("btnCancelEdit").onclick = closeEdit;
+
+    editForm.onsubmit = async (ev)=>{
+      ev.preventDefault();
+      if(!editingId) return;
+      const fecha = document.getElementById("e-fecha").value;
+      const hora  = document.getElementById("e-hora").value;
+      const fechaHora = `${fecha}T${hora}`;
+      await updateDoc(doc(db,"encargos", editingId),{
+        descripcion:     document.getElementById("e-descripcion").value.trim(),
+        fecha, hora, fechaHora,
+        nombreCliente:   document.getElementById("e-nombre").value.trim(),
+        telefonoCliente: document.getElementById("e-telefono").value.trim(),
+        persona:         document.getElementById("e-persona").value.trim(),
+        notas:           document.getElementById("e-notas").value.trim()
+      });
+      closeEdit();
+    };
+
+    // Iniciar mostrando HOY
+    subscribeToday();
+  </script>
 </body>
 </html>
