@@ -101,6 +101,7 @@
     </div>
   </div>
 
+  <!-- ===== App moderna (modules) ===== -->
   <script type="module">
     /* TU firebaseConfig */
     const firebaseConfig = {
@@ -113,12 +114,10 @@
       measurementId: "G-2QGJNLDQGK"
     };
 
-    // IMPORTS
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
       getFirestore, collection, addDoc, doc, deleteDoc, updateDoc,
-      onSnapshot, query, orderBy, enableIndexedDbPersistence, serverTimestamp,
-      where
+      onSnapshot, query, orderBy, enableIndexedDbPersistence, serverTimestamp, where
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -129,9 +128,10 @@
     await signInAnonymously(auth);
     enableIndexedDbPersistence(db).catch(()=>{});
 
-    // Utilidad fecha y badge
-    const todayBadge = document.getElementById("today");
-    todayBadge.textContent = new Date().toLocaleDateString("es-ES",{weekday:"short", day:"2-digit", month:"short"});
+    // UI: fecha cabecera
+    document.getElementById("today").textContent =
+      new Date().toLocaleDateString("es-ES",{weekday:"short", day:"2-digit", month:"short"});
+
     const hoyStr = () => {
       const d = new Date();
       const mm = String(d.getMonth()+1).padStart(2,'0');
@@ -139,16 +139,16 @@
       return `${d.getFullYear()}-${mm}-${dd}`;
     };
 
-    // Colección y elementos
+    // Colección y refs
     const col   = collection(db, "encargos");
     const lista = document.getElementById("lista");
     const badgeCount = document.getElementById("badgeCount");
 
-    // Estado edición
+    // Estado
     let lastDocs = [];
     let stop;
 
-    // Render de lista
+    // Render
     function render(snap){
       lastDocs = snap.docs;
       badgeCount.textContent = `• ${snap.size} encargos`;
@@ -179,7 +179,7 @@
       }).join("");
     }
 
-    // Delegación de eventos en la lista (borrar / editar)
+    // Delegación de eventos (borrar/editar)
     lista.addEventListener("click", (ev)=>{
       const btn = ev.target.closest("button[data-action]");
       if(!btn) return;
@@ -233,7 +233,7 @@
       f.reset();
     });
 
-    // Vaciar día (borra los visibles cuando está el filtro de HOY)
+    // Vaciar día (borra los visibles)
     document.getElementById("btnVaciar").onclick = async ()=>{
       if (!confirm("¿Borrar TODOS los encargos visibles?")) return;
       for (const d of lastDocs){ await deleteDoc(doc(db,"encargos", d.id)); }
@@ -276,8 +276,102 @@
       closeEdit();
     };
 
-    // Iniciar mostrando HOY
-    subscribeToday();
+    // ARRANQUE: TODO (más robusto si la fecha del dispositivo no coincide)
+    subscribeAll();
+
+  </script>
+
+  <!-- ===== Fallback para navegadores antiguos (sin modules) ===== -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" nomodule></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" nomodule></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" nomodule></script>
+  <script nomodule>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCwWNzBYuB59EYZAdO7EuTysIaFiRwRgVs",
+      authDomain: "encargos-cocina.firebaseapp.com",
+      projectId: "encargos-cocina",
+      storageBucket: "encargos-cocina.firebasestorage.app",
+      messagingSenderId: "147677552505",
+      appId: "1:147677552505:web:ab956b3fb56eccd46419a8",
+      measurementId: "G-2QGJNLDQGK"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    auth.signInAnonymously().catch(()=>{});
+    const db = firebase.firestore();
+    db.enablePersistence().catch(()=>{});
+
+    const lista = document.getElementById("lista");
+    const badge = document.getElementById("badgeCount");
+    const col   = db.collection("encargos");
+
+    const hoyStr = () => {
+      const d = new Date();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${d.getFullYear()}-${mm}-${dd}`;
+    };
+
+    function renderSnap(snap){
+      badge.textContent = `• ${snap.size} encargos`;
+      if (snap.empty){ lista.innerHTML = "<p style='color:#94a3b8'>No hay encargos</p>"; return; }
+      lista.innerHTML = snap.docs.map(d=>{
+        const e = d.data();
+        return `
+          <div class="encargo">
+            <div class="line1">
+              <div>${e.descripcion||""}</div>
+              <div class="hora">${e.hora||""}</div>
+            </div>
+            <div class="meta">
+              👤 ${e.nombreCliente||""} — 📞 ${e.telefonoCliente||""}<br>
+              📅 ${e.fecha||""} ${e.notas?`📝 ${e.notas}`:""} ${e.persona?`🧾 ${e.persona}`:""}
+            </div>
+            <div style="margin-top:.5rem;display:flex;gap:.5rem">
+              <button class="delete" data-id="${d.id}">Borrar</button>
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    let unsub;
+    function subscribeAll(){ if (unsub) unsub(); unsub = col.orderBy("fechaHora").onSnapshot(renderSnap); }
+    function subscribeToday(){
+      if (unsub) unsub();
+      const start = `${hoyStr()}T00:00`;
+      const end   = `${hoyStr()}T23:59`;
+      unsub = col.where("fechaHora", ">=", start).where("fechaHora", "<=", end).orderBy("fechaHora").onSnapshot(renderSnap);
+    }
+
+    document.getElementById("btnHoy").onclick  = subscribeToday;
+    document.getElementById("btnTodo").onclick = subscribeAll;
+
+    document.getElementById("formEncargo").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const f = e.target;
+      const fechaHora = `${f.fecha.value}T${f.hora.value}`;
+      await col.add({
+        descripcion: f.descripcion.value.trim(),
+        fecha: f.fecha.value,
+        hora: f.hora.value,
+        fechaHora,
+        nombreCliente: f.nombre.value.trim(),
+        telefonoCliente: f.telefono.value.trim(),
+        persona: f.persona.value.trim(),
+        notas: f.notas.value.trim(),
+        creado: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      f.reset();
+    });
+
+    document.getElementById("lista").addEventListener("click",(ev)=>{
+      const id = ev.target?.dataset?.id;
+      if (ev.target.matches(".delete") && id){ col.doc(id).delete(); }
+    });
+
+    // Arranque robusto
+    subscribeAll();
   </script>
 </body>
 </html>
